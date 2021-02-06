@@ -1,0 +1,48 @@
+name: build
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - master
+      - release/*
+
+  pull_request:
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: nuget/setup-nuget@v1
+      - run: nuget restore Sentry.EntityFramework.sln
+      - uses: microsoft/setup-msbuild@v1.0.2
+        if: matrix.os == 'windows-latest'
+      - name: Build Solution with MSBuild
+        run: msbuild Sentry.EntityFramework.sln -p:Configuration=Release
+      - name: Build Sample
+        run: msbuild samples/Sentry.Samples.AspNet.Mvc/Sentry.Samples.AspNet.Mvc.csproj.csproj
+      - name: Build Test Project
+        run: msbuild test/Sentry.EntityFramework.Tests/Sentry.EntityFramework.Tests.csproj /p:Platform=x64 /p:Configuration=Release
+        if: matrix.os == 'windows-latest'
+      - name: Setup VS Test
+        uses: darenm/Setup-VSTest@v1
+        if: matrix.os == 'windows-latest'
+      - name: Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: Package
+          path: |
+            ${{ github.workspace }}/src/**/Release/*.nupkg
+      - name: Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: Symbols
+          path: |
+            ${{ github.workspace }}/src/**/Release/*.snupkg
